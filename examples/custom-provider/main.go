@@ -30,36 +30,12 @@ import (
 	"github.com/nghyane/llm-mux/sdk/cliproxy"
 	coreauth "github.com/nghyane/llm-mux/sdk/cliproxy/auth"
 	clipexec "github.com/nghyane/llm-mux/sdk/cliproxy/executor"
-	sdktr "github.com/nghyane/llm-mux/sdk/translator"
 )
 
 const (
 	// providerKey is the identifier for our custom provider.
 	providerKey = "myprov"
-
-	// fOpenAI represents the OpenAI chat format.
-	fOpenAI = sdktr.Format("openai.chat")
-
-	// fMyProv represents our custom provider's chat format.
-	fMyProv = sdktr.Format("myprov.chat")
 )
-
-// init registers trivial translators for demonstration purposes.
-// In a real implementation, you would implement proper request/response
-// transformation logic between OpenAI format and your provider's format.
-func init() {
-	sdktr.Register(fOpenAI, fMyProv,
-		func(model string, raw []byte, stream bool) []byte { return raw },
-		sdktr.ResponseTransform{
-			Stream: func(ctx context.Context, model string, originalReq, translatedReq, raw []byte, param *any) []string {
-				return []string{string(raw)}
-			},
-			NonStream: func(ctx context.Context, model string, originalReq, translatedReq, raw []byte, param *any) string {
-				return string(raw)
-			},
-		},
-	)
-}
 
 // MyExecutor is a minimal provider implementation for demonstration purposes.
 // It implements the Executor interface to handle requests to a custom AI provider.

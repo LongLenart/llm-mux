@@ -6,7 +6,6 @@ import (
 
 	cliproxyauth "github.com/nghyane/llm-mux/sdk/cliproxy/auth"
 	cliproxyexecutor "github.com/nghyane/llm-mux/sdk/cliproxy/executor"
-	sdktranslator "github.com/nghyane/llm-mux/sdk/translator"
 )
 
 // Context encapsulates execution state shared across middleware, translators, and executors.
@@ -17,8 +16,6 @@ type Context struct {
 	Options cliproxyexecutor.Options
 	// Auth references the credential selected for execution.
 	Auth *cliproxyauth.Auth
-	// Translator represents the pipeline responsible for schema adaptation.
-	Translator *sdktranslator.Pipeline
 	// HTTPClient allows middleware to customise the outbound transport per request.
 	HTTPClient *http.Client
 }
