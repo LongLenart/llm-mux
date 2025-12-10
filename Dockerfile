@@ -8,6 +8,9 @@ RUN go mod download
 
 COPY . .
 
+# Copy config for embedding
+RUN cp config.example.yaml internal/embedded/
+
 ARG VERSION=dev
 ARG COMMIT=none
 ARG BUILD_DATE=unknown

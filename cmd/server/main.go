@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -21,6 +20,7 @@ import (
 	"github.com/nghyane/llm-mux/internal/buildinfo"
 	"github.com/nghyane/llm-mux/internal/cmd"
 	"github.com/nghyane/llm-mux/internal/config"
+	"github.com/nghyane/llm-mux/internal/embedded"
 	"github.com/nghyane/llm-mux/internal/logging"
 	"github.com/nghyane/llm-mux/internal/managementasset"
 	"github.com/nghyane/llm-mux/internal/misc"
@@ -39,8 +39,6 @@ var (
 	DefaultConfigPath = "~/.config/llm-mux/config.yaml"
 )
 
-//go:embed config.example.yaml
-var defaultConfigTemplate []byte
 
 // init initializes the shared logger setup.
 func init() {
@@ -518,7 +516,7 @@ func autoInitConfig(configPath string) {
 	}
 	authDir := filepath.Join(dir, "auth")
 	_ = os.MkdirAll(authDir, 0o700)
-	if err := os.WriteFile(configPath, defaultConfigTemplate, 0o600); err != nil {
+	if err := os.WriteFile(configPath, embedded.DefaultConfigTemplate, 0o600); err != nil {
 		return
 	}
 	fmt.Printf("First run: created config at %s\n", configPath)
@@ -545,7 +543,7 @@ func doInitConfig(configPath string) {
 		log.Fatalf("Failed to create auth directory %s: %v", authDir, err)
 	}
 
-	if err := os.WriteFile(configPath, defaultConfigTemplate, 0o600); err != nil {
+	if err := os.WriteFile(configPath, embedded.DefaultConfigTemplate, 0o600); err != nil {
 		log.Fatalf("Failed to write config file: %v", err)
 	}
 
