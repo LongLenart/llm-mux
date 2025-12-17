@@ -320,9 +320,8 @@ func (p *GeminiProvider) applyMessages(root map[string]any, req *ir.UnifiedChatR
 				isClaude := strings.Contains(req.Model, "claude")
 				if isClaude && !hasThinking {
 					parts = append([]any{map[string]any{
-						"text":             "Placeholder: Thinking content was lost in previous turn (likely due to non-streaming/error).",
-						"thought":          true,
-						"thoughtSignature": "skip_thought_signature_validator",
+						"text":              "Thinking content redated.",
+						"redacted_thinking": true,
 					}}, parts...)
 				}
 
