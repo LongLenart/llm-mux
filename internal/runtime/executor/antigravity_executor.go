@@ -635,7 +635,7 @@ func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyau
 	var requestURL strings.Builder
 	requestURL.WriteString(baseURL)
 	requestURL.WriteString("/v1beta/models/")
-	requestURL.WriteString(modelName) // Keep original model name in URL path
+	requestURL.WriteString(alias2ModelName(modelName)) // Use alias name in URL path
 
 	if stream {
 		requestURL.WriteString(":streamGenerateContent")
@@ -1007,9 +1007,9 @@ func alias2ModelName(modelName string) string {
 	case "gemini-claude-sonnet-4-5", "claude-sonnet-4-5":
 		return "claude-sonnet-4-5"
 	case "gemini-claude-sonnet-4-5-thinking", "claude-sonnet-4-5-thinking":
-		return "claude-sonnet-4-5-thinking"
+		return "claude-sonnet-4-5"
 	case "gemini-claude-opus-4-5-thinking", "claude-opus-4-5-thinking":
-		return "claude-opus-4-5-thinking"
+		return "claude-opus-4-5"
 	default:
 		return modelName
 	}
