@@ -143,6 +143,12 @@ func (b *ResponseBuilder) BuildClaudeContentParts() []any {
 		parts = append(parts, toolUse)
 	}
 
+	// Safety Check: Ensure response has content.
+	// This must be checked LAST, after processing all potential content types (thinking, text, tools).
+	if len(parts) == 0 {
+		parts = append(parts, map[string]any{"type": "text", "text": "I apologize, but I encountered an issue generating a response. Please try again."})
+	}
+
 	return parts
 }
 
