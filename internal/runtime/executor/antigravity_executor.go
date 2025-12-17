@@ -93,7 +93,7 @@ func (e *AntigravityExecutor) Execute(ctx context.Context, auth *cliproxyauth.Au
 
 	for idx := 0; idx < len(baseURLs); idx++ {
 		baseURL := baseURLs[idx]
-		httpReq, errReq := e.buildRequest(ctx, auth, token, req.Model, translated, req.Metadata, false, opts.Alt, baseURL)
+		httpReq, errReq := e.buildRequest(ctx, auth, token, req.Model, translated, false, opts.Alt, baseURL)
 		if errReq != nil {
 			err = errReq
 			return resp, err
@@ -215,7 +215,7 @@ func (e *AntigravityExecutor) ExecuteStream(ctx context.Context, auth *cliproxya
 
 	for idx := 0; idx < len(baseURLs); idx++ {
 		baseURL := baseURLs[idx]
-		httpReq, errReq := e.buildRequest(ctx, auth, token, req.Model, translated, req.Metadata, true, opts.Alt, baseURL)
+		httpReq, errReq := e.buildRequest(ctx, auth, token, req.Model, translated, true, opts.Alt, baseURL)
 		if errReq != nil {
 			err = errReq
 			return nil, err
@@ -631,22 +631,22 @@ func (e *AntigravityExecutor) refreshToken(ctx context.Context, auth *cliproxyau
 	return auth, nil
 }
 
-func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyauth.Auth, token, modelName string, payload []byte, metadata map[string]any, stream bool, alt, baseURL string) (*http.Request, error) {
+func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyauth.Auth, token, modelName string, payload []byte, stream bool, alt, baseURL string) (*http.Request, error) {
 	if token == "" {
 		return nil, statusErr{code: http.StatusUnauthorized, msg: "missing access token"}
 	}
 
-	var requestURL strings.Builder
-	requestURL.WriteString(baseURL)
-	requestURL.WriteString("/v1beta/models/")
-	requestURL.WriteString(alias2ModelName(modelName)) // Use alias name in URL path
-
-	if stream {
-		requestURL.WriteString(":streamGenerateContent")
-	} else {
-		requestURL.WriteString(":generateContent")
+	base := strings.TrimSuffix(baseURL, "/")
+	if base == "" {
+		base = buildBaseURL(auth)
 	}
-
+	path := antigravityGeneratePath
+	if stream {
+		path = antigravityStreamPath
+	}
+	var requestURL strings.Builder
+	requestURL.WriteString(base)
+	requestURL.WriteString(path)
 	if stream {
 		if alt != "" {
 			requestURL.WriteString("?$alt=")
@@ -669,6 +669,39 @@ func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyau
 	payload = geminiToAntigravity(modelName, payload, projectID)
 	payload, _ = sjson.SetBytes(payload, "model", alias2ModelName(modelName))
 
+	if strings.Contains(modelName, "claude") {
+		strJSON := string(payload)
+		paths := make([]string, 0)
+		util.Walk(gjson.ParseBytes(payload), "", "parametersJsonSchema", &paths)
+		for _, p := range paths {
+			strJSON, _ = util.RenameKey(strJSON, p, p[:len(p)-len("parametersJsonSchema")]+"parameters")
+		}
+
+		strJSON = util.DeleteKey(strJSON, "$schema")
+		strJSON = util.DeleteKey(strJSON, "maxItems")
+		strJSON = util.DeleteKey(strJSON, "minItems")
+		strJSON = util.DeleteKey(strJSON, "minLength")
+		strJSON = util.DeleteKey(strJSON, "maxLength")
+		strJSON = util.DeleteKey(strJSON, "exclusiveMinimum")
+		strJSON = util.DeleteKey(strJSON, "exclusiveMaximum")
+		strJSON = util.DeleteKey(strJSON, "$ref")
+		strJSON = util.DeleteKey(strJSON, "$defs")
+
+		paths = make([]string, 0)
+		util.Walk(gjson.Parse(strJSON), "", "anyOf", &paths)
+		for _, p := range paths {
+			anyOf := gjson.Get(strJSON, p)
+			if anyOf.IsArray() {
+				anyOfItems := anyOf.Array()
+				if len(anyOfItems) > 0 {
+					strJSON, _ = sjson.SetRaw(strJSON, p[:len(p)-len(".anyOf")], anyOfItems[0].Raw)
+				}
+			}
+		}
+
+		payload = []byte(strJSON)
+	}
+
 	httpReq, errReq := http.NewRequestWithContext(ctx, http.MethodPost, requestURL.String(), bytes.NewReader(payload))
 	if errReq != nil {
 		return nil, errReq
@@ -681,7 +714,7 @@ func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyau
 	} else {
 		httpReq.Header.Set("Accept", "application/json")
 	}
-	if host := resolveHost(baseURL); host != "" {
+	if host := resolveHost(base); host != "" {
 		httpReq.Host = host
 	}
 
@@ -926,8 +959,8 @@ func modelName2Alias(modelName string) string {
 		return "gemini-claude-sonnet-4-5"
 	case "claude-sonnet-4-5-thinking":
 		return "gemini-claude-sonnet-4-5-thinking"
-	case "claude-opus-4-five-thinking":
-		return "gemini-claude-opus-4-five-thinking"
+	case "claude-opus-4-5-thinking":
+		return "gemini-claude-opus-4-5-thinking"
 	case "chat_20706", "chat_23310", "gemini-2.5-flash-thinking", "gemini-3-pro-low", "gemini-2.5-pro":
 		return ""
 	default:
@@ -947,8 +980,8 @@ func alias2ModelName(modelName string) string {
 		return "claude-sonnet-4-5"
 	case "gemini-claude-sonnet-4-5-thinking":
 		return "claude-sonnet-4-5-thinking"
-	case "gemini-claude-opus-4-five-thinking":
-		return "claude-opus-4-five-thinking"
+	case "gemini-claude-opus-4-5-thinking":
+		return "claude-opus-4-5-thinking"
 	default:
 		return modelName
 	}
