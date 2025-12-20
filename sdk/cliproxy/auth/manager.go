@@ -33,7 +33,6 @@ type RefreshEvaluator interface {
 	ShouldRefresh(now time.Time, auth *Auth) bool
 }
 
-
 // Result captures execution outcome used to adjust auth state.
 type Result struct {
 	// AuthID references the auth that produced this result.
@@ -87,8 +86,8 @@ type Manager struct {
 	auths     map[string]*Auth
 
 	// Provider balancing: atomic counter for round-robin + stats for weighted selection
-	providerCounter atomic.Uint64    // Global atomic counter (lock-free)
-	providerStats   *ProviderStats   // Performance-based provider selection
+	providerCounter atomic.Uint64  // Global atomic counter (lock-free)
+	providerStats   *ProviderStats // Performance-based provider selection
 
 	// Retry controls request retry behavior.
 	requestRetry     atomic.Int32
@@ -111,10 +110,10 @@ func NewManager(store Store, selector Selector, hook Hook) *Manager {
 	}
 	return &Manager{
 		store:         store,
-		executors:    make(map[string]ProviderExecutor),
-		selector:     selector,
-		hook:         hook,
-		auths:        make(map[string]*Auth),
+		executors:     make(map[string]ProviderExecutor),
+		selector:      selector,
+		hook:          hook,
+		auths:         make(map[string]*Auth),
 		providerStats: NewProviderStats(),
 	}
 }
@@ -368,8 +367,6 @@ func (m *Manager) ExecuteStream(ctx context.Context, providers []string, req cli
 	return nil, &Error{Code: "auth_not_found", Message: "no auth available"}
 }
 
-
-
 // MarkResult records an execution result and notifies hooks.
 func (m *Manager) MarkResult(ctx context.Context, result Result) {
 	if result.AuthID == "" {
@@ -390,6 +387,15 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 			if result.Model != "" {
 				state := ensureModelState(auth, result.Model)
 				resetModelState(state, now)
+
+				// Clear quota for all models in the same quota group
+				// (e.g., for Antigravity: if one Claude model succeeds, others in group can retry)
+				clearedModels := clearQuotaGroupOnSuccess(auth, result.Model, now)
+				for _, clearedModel := range clearedModels {
+					registry.GetGlobalRegistry().ClearModelQuotaExceeded(result.AuthID, clearedModel)
+					registry.GetGlobalRegistry().ResumeClientModel(result.AuthID, clearedModel)
+				}
+
 				updateAggregatedAvailability(auth, now)
 				if !hasModelError(auth, now) {
 					auth.LastError = nil
@@ -465,6 +471,14 @@ func (m *Manager) MarkResult(ctx context.Context, result Result) {
 					suspendReason = "quota"
 					shouldSuspendModel = true
 					setModelQuota = true
+
+					// Propagate quota to all models in the same quota group
+					// (e.g., for Antigravity: all Claude models share quota)
+					affectedModels := propagateQuotaToGroup(auth, result.Model, state.Quota, next, now)
+					for _, affectedModel := range affectedModels {
+						registry.GetGlobalRegistry().SetModelQuotaExceeded(result.AuthID, affectedModel)
+						registry.GetGlobalRegistry().SuspendClientModel(result.AuthID, affectedModel, "quota_group")
+					}
 				case 408, 500, 502, 503, 504:
 					next := now.Add(1 * time.Minute)
 					state.NextRetryAfter = next
@@ -608,8 +622,6 @@ func (m *Manager) persist(ctx context.Context, auth *Auth) error {
 	_, err := m.store.Save(ctx, auth)
 	return err
 }
-
-
 
 func (m *Manager) markRefreshPending(id string, now time.Time) bool {
 	m.mu.Lock()

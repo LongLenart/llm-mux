@@ -4,7 +4,6 @@ import (
 	"time"
 )
 
-
 // ensureModelState creates a model state if it doesn't exist.
 func ensureModelState(auth *Auth, model string) *ModelState {
 	if auth == nil || model == "" {
@@ -227,4 +226,105 @@ func statusCodeFromResult(err *Error) int {
 		return 0
 	}
 	return err.StatusCode()
+}
+
+// propagateQuotaToGroup applies quota state to all models in the same quota group.
+// This is used for providers where models share rate limits (e.g., Antigravity
+// where all Claude models share quota, all Gemini models share quota, etc.)
+//
+// When a model hits quota (429), this function propagates the quota state to all
+// other models in the same group, so they are also blocked until the quota resets.
+func propagateQuotaToGroup(auth *Auth, sourceModel string, quota QuotaState, nextRetry time.Time, now time.Time) []string {
+	if auth == nil || sourceModel == "" {
+		return nil
+	}
+
+	// Fast path: check if provider has quota grouping
+	if !HasQuotaGrouping(auth.Provider) {
+		return nil
+	}
+
+	quotaGroup := ResolveQuotaGroup(auth.Provider, sourceModel)
+	if quotaGroup == "" {
+		return nil
+	}
+
+	// Update the quota group index for O(1) lookup
+	idx := getOrCreateQuotaGroupIndex(auth)
+	idx.setGroupBlocked(quotaGroup, sourceModel, nextRetry, quota.NextRecoverAt)
+
+	var affectedModels []string
+
+	// Propagate to existing model states in the same group
+	for modelID, state := range auth.ModelStates {
+		if state == nil || modelID == sourceModel {
+			continue
+		}
+
+		// Use cached group from extractModelFamily (no mutex, no allocations for simple case)
+		modelGroup := ResolveQuotaGroup(auth.Provider, modelID)
+		if modelGroup != quotaGroup {
+			continue
+		}
+
+		// Apply the same quota state to this model
+		state.Unavailable = true
+		state.NextRetryAfter = nextRetry
+		state.Quota = QuotaState{
+			Exceeded:      quota.Exceeded,
+			Reason:        quota.Reason,
+			NextRecoverAt: quota.NextRecoverAt,
+			BackoffLevel:  quota.BackoffLevel,
+		}
+		state.Status = StatusError
+		state.StatusMessage = "quota_group_exceeded"
+		state.UpdatedAt = now
+		affectedModels = append(affectedModels, modelID)
+	}
+
+	return affectedModels
+}
+
+// clearQuotaGroupOnSuccess clears quota state for all models in the same quota group.
+// This is called when a model succeeds, indicating the quota has recovered.
+func clearQuotaGroupOnSuccess(auth *Auth, sourceModel string, now time.Time) []string {
+	if auth == nil || sourceModel == "" {
+		return nil
+	}
+
+	// Fast path: check if provider has quota grouping
+	if !HasQuotaGrouping(auth.Provider) {
+		return nil
+	}
+
+	quotaGroup := ResolveQuotaGroup(auth.Provider, sourceModel)
+	if quotaGroup == "" {
+		return nil
+	}
+
+	// Clear the quota group index
+	if idx := getQuotaGroupIndex(auth); idx != nil {
+		idx.clearGroup(quotaGroup)
+	}
+
+	var clearedModels []string
+
+	for modelID, state := range auth.ModelStates {
+		if state == nil || modelID == sourceModel {
+			continue
+		}
+
+		modelGroup := ResolveQuotaGroup(auth.Provider, modelID)
+		if modelGroup != quotaGroup {
+			continue
+		}
+
+		// Only clear if this model was blocked due to quota group
+		if state.StatusMessage == "quota_group_exceeded" || state.Quota.Exceeded {
+			resetModelState(state, now)
+			clearedModels = append(clearedModels, modelID)
+		}
+	}
+
+	return clearedModels
 }

@@ -163,6 +163,7 @@ func isAuthBlockedForModel(auth *Auth, model string, now time.Time) (bool, block
 	}
 	if model != "" {
 		if len(auth.ModelStates) > 0 {
+			// First check the specific model state
 			if state, ok := auth.ModelStates[model]; ok && state != nil {
 				if state.Status == StatusDisabled {
 					return true, blockReasonDisabled, time.Time{}
@@ -188,6 +189,20 @@ func isAuthBlockedForModel(auth *Auth, model string, now time.Time) (bool, block
 				return false, blockReasonNone, time.Time{}
 			}
 		}
+
+		// Fast path: check quota group index (O(1) lookup)
+		// This is only checked when model state doesn't exist yet
+		if HasQuotaGrouping(auth.Provider) {
+			quotaGroup := ResolveQuotaGroup(auth.Provider, model)
+			if quotaGroup != "" {
+				if idx := getQuotaGroupIndex(auth); idx != nil {
+					if blocked, next := idx.isGroupBlocked(quotaGroup, now); blocked {
+						return true, blockReasonCooldown, next
+					}
+				}
+			}
+		}
+
 		return false, blockReasonNone, time.Time{}
 	}
 	if auth.Unavailable && auth.NextRetryAfter.After(now) {
