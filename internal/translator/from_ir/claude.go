@@ -352,7 +352,11 @@ func buildClaudeContentParts(msg ir.Message, includeToolCalls bool, thinkingEnab
 		switch p.Type {
 		case ir.ContentTypeReasoning:
 			if p.Reasoning != "" {
-				parts = append(parts, map[string]any{"type": ir.ClaudeBlockThinking, "thinking": p.Reasoning})
+				thinkingBlock := map[string]any{"type": ir.ClaudeBlockThinking, "thinking": p.Reasoning}
+				if len(p.ThoughtSignature) > 0 {
+					thinkingBlock["signature"] = string(p.ThoughtSignature)
+				}
+				parts = append(parts, thinkingBlock)
 			}
 		case ir.ContentTypeText:
 			if p.Text != "" {

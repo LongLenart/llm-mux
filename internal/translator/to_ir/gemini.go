@@ -266,7 +266,9 @@ func parseGeminiContent(c gjson.Result) ir.Message {
 			if id == "" {
 				id = ir.GenToolCallID()
 			}
-			msg.ToolCalls = append(msg.ToolCalls, ir.ToolCall{ID: id, Name: name, Args: args})
+			// Extract thoughtSignature if present (Gemini format)
+			ts := ir.ExtractThoughtSignature(part)
+			msg.ToolCalls = append(msg.ToolCalls, ir.ToolCall{ID: id, Name: name, Args: args, ThoughtSignature: ts})
 		}
 
 		if fr := part.Get("functionResponse"); fr.Exists() {
@@ -545,7 +547,12 @@ func ParseGeminiChunkWithContext(rawJSON []byte, schemaCtx *ir.ToolSchemaContext
 			ts := ir.ExtractThoughtSignature(part)
 
 			if text := part.Get("text"); text.Exists() && text.String() != "" {
-				if part.Get("thought").Bool() {
+				// Check for thinking content using multiple field patterns:
+				// - "thought": true (standard Gemini format)
+				// - presence of "thoughtSummary" (indicates thinking part)
+				// - presence of "thoughtSignature" with no other indicators (fallback)
+				isThinking := part.Get("thought").Bool() || part.Get("thoughtSummary").Exists()
+				if isThinking {
 					events = append(events, ir.UnifiedEvent{Type: ir.EventTypeReasoning, Reasoning: text.String(), ThoughtSignature: ts})
 				} else {
 					events = append(events, ir.UnifiedEvent{Type: ir.EventTypeToken, Content: text.String(), ThoughtSignature: ts})
