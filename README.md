@@ -4,169 +4,250 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue)](https://github.com/nghyane/llm-mux)
 [![Go Version](https://img.shields.io/badge/go-1.24-cyan)](https://golang.org)
 
-**The Universal AI Gateway.** Access Gemini, Claude, OpenAI, GitHub Copilot, Kiro, and more through a single local API. No API keys required—just OAuth.
+**Use Claude, Gemini, GPT-4, and Copilot for FREE.** A local AI gateway that lets you access premium AI models without API keys—just OAuth login.
+
+> **Works with:** Cursor, Cline, Aider, Continue, Windsurf, VS Code, and any OpenAI-compatible tool.
 
 ```mermaid
 graph LR
-    User[Your App/CLI] -->|OpenAI/Claude Format| Mux[llm-mux]
-    Mux -->|OAuth| Google[Gemini 2.5/3.0]
-    Mux -->|OAuth| Anthropic[Claude 4/Sonnet]
-    Mux -->|OAuth| GitHub[GPT-4.1/5]
-    Mux -->|OAuth| Amazon[Kiro/Q]
-    Mux -->|OAuth| Others[Qwen/iFlow]
+    Tools[Cursor / Cline / Aider] -->|OpenAI Format| Mux[llm-mux :8318]
+    Mux -->|OAuth| Gemini[Gemini 2.5/3.0]
+    Mux -->|OAuth| Claude[Claude 4 Sonnet]
+    Mux -->|OAuth| Copilot[GPT-4.1 / GPT-5]
+    Mux -->|OAuth| More[Kiro / Qwen / iFlow]
 ```
 
-## ⚡️ Quick Install
+## Why llm-mux?
 
-Get up and running in seconds. The installer sets up the binary and a background service automatically.
+| Problem | Solution |
+|:--------|:---------|
+| API keys cost $20+/month per provider | **Free** — uses OAuth from free tiers |
+| Each tool needs different API format | **Universal** — one endpoint, all formats |
+| Rate limits and quota errors | **Smart** — auto-retry, load balancing |
+| Managing multiple accounts | **Unified** — all credentials in one place |
+| Privacy concerns with API keys | **Local** — runs on your machine, keys never leave |
+
+---
+
+## ⚡️ Quick Start (30 seconds)
+
+### Install
 
 | OS | Command |
 |:---|:---|
 | **macOS / Linux** | `curl -fsSL https://raw.githubusercontent.com/nghyane/llm-mux/main/install.sh \| bash` |
-| **Windows** (PowerShell) | `irm https://raw.githubusercontent.com/nghyane/llm-mux/main/install.ps1 \| iex` |
+| **Windows** | `irm https://raw.githubusercontent.com/nghyane/llm-mux/main/install.ps1 \| iex` |
 | **Docker** | `docker run -p 8318:8318 -v ~/.config/llm-mux:/root/.config/llm-mux nghyane/llm-mux` |
 
-### First Run Setup
-
-After installing, initialize your config and generate a management key:
+### Setup
 
 ```bash
-llm-mux --init          # Creates config + generates management key
-llm-mux --init --force  # Regenerate management key
+llm-mux --init           # Generate config + management key
+llm-mux --login          # Login with Google (Gemini)
+llm-mux --claude-login   # Login with Anthropic (Claude)
+llm-mux --copilot-login  # Login with GitHub (GPT-4.1/5)
 ```
 
-The management key is stored in `~/.config/llm-mux/credentials.json` and is required for the Web UI.
+### Use
+
+Point your AI tool to `http://localhost:8318` — that's it!
+
+```bash
+# Test it works
+curl http://localhost:8318/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gemini-2.5-flash", "messages": [{"role": "user", "content": "Hello!"}]}'
+```
 
 ---
 
-## 🔐 Authentication
+## 🔌 Tool Integration
 
-Authenticate once, use forever. Tokens are auto-refreshed.
+### Cursor
+```
+Settings → Models → OpenAI API Base URL → http://localhost:8318/v1
+```
+
+### Cline / Claude Dev (VS Code)
+```
+Settings → API Provider → OpenAI Compatible → http://localhost:8318/v1
+```
+
+### Aider
+```bash
+aider --openai-api-base http://localhost:8318/v1 --model gemini-2.5-pro
+```
+
+### Continue.dev
+```json
+// ~/.continue/config.json
+{
+  "models": [{
+    "provider": "openai",
+    "model": "claude-sonnet-4-20250514",
+    "apiBase": "http://localhost:8318/v1"
+  }]
+}
+```
+
+### Python / LangChain
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8318/v1", api_key="unused")
+response = client.chat.completions.create(
+    model="gemini-2.5-flash",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+---
+
+## 🔐 All Providers
 
 ```bash
-# Google / Gemini
-llm-mux --login              # Gemini Pro/Flash/2.5/3.0
-llm-mux --antigravity-login  # Google Cloud Code (Antigravity)
+# Google
+llm-mux --login              # Gemini (2.5 Pro/Flash, 3.0)
+llm-mux --antigravity-login  # Google Cloud Code
 
-# Anthropic
-llm-mux --claude-login       # Claude 4/Sonnet/Opus
+# Anthropic  
+llm-mux --claude-login       # Claude 4 Sonnet/Opus
 
 # OpenAI / GitHub
 llm-mux --codex-login        # OpenAI Codex CLI
 llm-mux --copilot-login      # GitHub Copilot (GPT-4.1, GPT-5)
 
 # Amazon
-llm-mux --kiro-login         # Kiro / Amazon Q
+llm-mux --kiro-login         # Kiro / Amazon Q Developer
 
 # Others
-llm-mux --qwen-login         # Qwen / Alibaba
+llm-mux --qwen-login         # Qwen (Alibaba)
 llm-mux --iflow-login        # iFlow
+llm-mux --cline-login        # Cline API
 ```
 
-You can also authenticate via the **Web UI** at `http://localhost:8318/v0/management/` (requires management key from `--init`).
+**Or use the Web UI:** `http://localhost:8318/v0/management/`
 
 ---
 
-## 🚀 Usage
+## 📊 Available Models
 
-`llm-mux` runs on `http://localhost:8318`. Point **any** AI client (Cursor, VS Code, Python, LangChain) to this URL.
+| Provider | Popular Models | Context |
+|:---------|:---------------|:--------|
+| **Gemini** | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3-flash-preview` | 1M tokens |
+| **Claude** | `claude-sonnet-4-20250514`, `claude-3-5-sonnet`, `claude-3-opus` | 200K tokens |
+| **Copilot** | `gpt-4.1`, `gpt-4o`, `gpt-5-mini`, `gpt-5.1-codex-max` | 128K tokens |
+| **Kiro** | `amazon-q-developer` | 128K tokens |
 
-### Example: Using OpenAI Format (Universal)
-You can call *any* model using the standard OpenAI format:
-
-```bash
-curl http://localhost:8318/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gemini-2.5-flash",
-    "messages": [{"role": "user", "content": "Explain quantum computing in one sentence."}]
-  }'
-```
-
-### Available Models (Examples)
-
-| Provider | Models |
-|:---|:---|
-| **Gemini** | `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-3-flash-preview` |
-| **Claude** | `claude-sonnet-4-20250514`, `claude-3-5-sonnet`, `claude-3-opus` |
-| **Copilot** | `gpt-4.1`, `gpt-4o`, `gpt-5-mini`, `gpt-5.1-codex-max` |
-| **Kiro** | `amazon-q-developer` |
-
-> **Tip:** List all available models with `curl http://localhost:8318/v1/models`
-
-### Supported API Endpoints
-| Standard | Endpoint URL | Use Case |
-|:---|:---|:---|
-| **OpenAI** | `/v1/chat/completions` | Most apps, LangChain, AutoGen |
-| **Anthropic** | `/v1/messages` | Cursor, Claude Dev, Aider |
-| **Gemini** | `/v1beta/models/...` | Google ecosystem tools |
-| **Ollama** | `/api/chat` | Local-first tools |
+> Full list: `curl http://localhost:8318/v1/models`
 
 ---
 
-## 🎛️ Management API & Web UI
+## 🎯 API Endpoints
 
-llm-mux includes a built-in management interface for adding/removing auth credentials, viewing usage stats, and more.
+llm-mux speaks multiple API formats — use whichever your tool expects:
 
-**Web UI:** `http://localhost:8318/v0/management/`
+| Format | Endpoint | Compatible With |
+|:-------|:---------|:----------------|
+| **OpenAI** | `POST /v1/chat/completions` | Cursor, LangChain, most tools |
+| **Claude** | `POST /v1/messages` | Claude Dev, Aider |
+| **Gemini** | `POST /v1beta/models/:model:generateContent` | Google tools |
+| **Ollama** | `POST /api/chat` | Ollama-compatible tools |
+| **Responses API** | `POST /v1/responses` | OpenAI Responses format |
 
-**API Endpoints:**
+---
+
+## ⚙️ Advanced Features
+
+<details>
+<summary><strong>🔄 Load Balancing & Quota Management</strong></summary>
+
+Add multiple accounts per provider — llm-mux automatically:
+- Rotates between accounts
+- Retries on rate limits
+- Tracks quota usage per account
+
 ```bash
-# Start OAuth flow (returns auth URL)
+# Add multiple Gemini accounts
+llm-mux --login  # Account 1
+llm-mux --login  # Account 2 (different Google account)
+```
+
+</details>
+
+<details>
+<summary><strong>🎛️ Management API</strong></summary>
+
+```bash
+# Get your management key
+llm-mux --init
+
+# List all credentials
+curl http://localhost:8318/v0/management/auths \
+  -H "X-Management-Key: YOUR_KEY"
+
+# Start OAuth via API
 curl -X POST http://localhost:8318/v0/management/oauth/start \
   -H "X-Management-Key: YOUR_KEY" \
   -d '{"provider": "claude"}'
-
-# Check OAuth status
-curl http://localhost:8318/v0/management/oauth/status/STATE \
-  -H "X-Management-Key: YOUR_KEY"
-
-# List all auth credentials
-curl http://localhost:8318/v0/management/auths \
-  -H "X-Management-Key: YOUR_KEY"
 ```
 
-The management key is generated by `llm-mux --init` and stored in `~/.config/llm-mux/credentials.json`.
-You can also set `MANAGEMENT_PASSWORD` environment variable to override.
+</details>
+
+<details>
+<summary><strong>☁️ Sync Across Machines (GitStore)</strong></summary>
+
+Sync credentials across devices using a private Git repo:
+
+```bash
+export GITSTORE_GIT_URL=https://github.com/you/llm-mux-store.git
+export GITSTORE_GIT_USERNAME=your_user
+export GITSTORE_GIT_TOKEN=your_pat_token
+```
+
+</details>
+
+<details>
+<summary><strong>🖥️ Service Management</strong></summary>
+
+| Action | macOS | Linux | Windows |
+|:-------|:------|:------|:--------|
+| Start | `launchctl start com.llm-mux` | `systemctl --user start llm-mux` | `Start-ScheduledTask "llm-mux"` |
+| Stop | `launchctl stop com.llm-mux` | `systemctl --user stop llm-mux` | `Stop-ScheduledTask "llm-mux"` |
+
+</details>
 
 ---
 
-## 🛠️ Advanced & Services
+## 🏗️ How It Works
 
-<details>
-<summary><strong>🖥️ Service Management (Start/Stop)</strong></summary>
+```
+Your Tool (OpenAI format)
+    ↓
+llm-mux (translate to IR)
+    ↓
+Provider API (Gemini/Claude/etc.)
+    ↓
+llm-mux (translate response back)
+    ↓
+Your Tool (OpenAI format response)
+```
 
-| Action | macOS (`launchctl`) | Linux (`systemd`) | Windows (`Task Scheduler`) |
-|:---|:---|:---|:---|
-| **Start** | `launchctl start com.llm-mux` | `systemctl --user start llm-mux` | `Start-ScheduledTask "Start llm-mux"` |
-| **Stop** | `launchctl stop com.llm-mux` | `systemctl --user stop llm-mux` | `Stop-ScheduledTask "Start llm-mux"` |
-| **Logs** | `~/.local/var/log/llm-mux.log` | `journalctl --user -u llm-mux` | Windows Event Viewer |
+**Intermediate Representation (IR):** Instead of N² translations between formats, llm-mux uses an IR — translate to IR once, translate from IR once. 2N instead of N².
 
-</details>
+---
 
-<details>
-<summary><strong>☁️ Sync Config with GitStore (Pro)</strong></summary>
+## 📝 Keywords
 
-Sync your tokens and config across multiple machines using a private Git repo.
+`free claude api` · `free gemini api` · `cursor free` · `ai proxy` · `openai compatible` · `llm gateway` · `claude without api key` · `gemini openai format` · `aider free` · `cline api` · `multi llm` · `ai aggregator`
 
-1. Create a private empty repo on GitHub.
-2. Set environment variables (in `.bashrc` or Windows Env):
-   ```bash
-   export GITSTORE_GIT_URL=https://github.com/username/my-mux-store.git
-   export GITSTORE_GIT_USERNAME=your_user
-   export GITSTORE_GIT_TOKEN=your_pat_token
-   ```
-3. Restart `llm-mux`. It will auto-sync!
-</details>
-
-<details>
-<summary><strong>🏗️ Architecture</strong></summary>
-
-*   **Intermediate Representation (IR)**: Translates requests 2N times instead of N² times.
-*   **Provider Adapters**: Handles specific OAuth flows and token rotation.
-*   **Load Balancer**: Smart routing based on quota availability.
-</details>
+---
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+MIT License — see [LICENSE](LICENSE)
+
+---
+
+<p align="center">
+  <b>⭐ Star this repo if llm-mux saves you money!</b>
+</p>
