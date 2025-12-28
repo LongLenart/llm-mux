@@ -41,7 +41,11 @@ RUN chmod +x /llm-mux/llm-mux
 
 USER llm-mux
 
+USER llm-mux
+
 ENV TZ=UTC
+ENV PORT=8317
+ENV HOST=0.0.0.0
 ENV SHELL=/bin/bash
 
 EXPOSE 8317
